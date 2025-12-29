@@ -1,0 +1,470 @@
+import { useState, useEffect, useCallback } from 'react';
+import { useAuth } from '../context/AuthContext';
+import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
+import { todayInLimaISO, formatDateForDisplay } from '../lib/todayLima';
+import { Navbar } from '../components/Navbar';
+import { TodoForm } from '../components/TodoForm';
+import { TodoItem } from '../components/TodoItem';
+import type { Todo } from '../types/todo';
+
+// Demo data for when Supabase is not configured
+const createDemoTodos = (): Todo[] => {
+    const today = todayInLimaISO();
+    return [
+        {
+            id: 'demo-1',
+            user_id: 'demo-user-123',
+            title: '✨ Welcome to demo mode',
+            done: true,
+            task_date: today,
+            created_at: new Date().toISOString(),
+            parent_id: null,
+            subtasks: [],
+        },
+        {
+            id: 'demo-2',
+            user_id: 'demo-user-123',
+            title: '📝 Learn how to use the app',
+            done: false,
+            task_date: today,
+            created_at: new Date().toISOString(),
+            parent_id: null,
+            subtasks: [
+                {
+                    id: 'demo-2-1',
+                    user_id: 'demo-user-123',
+                    title: 'Create a new task',
+                    done: true,
+                    task_date: today,
+                    created_at: new Date().toISOString(),
+                    parent_id: 'demo-2',
+                },
+                {
+                    id: 'demo-2-2',
+                    user_id: 'demo-user-123',
+                    title: 'Add subtasks with the + button',
+                    done: false,
+                    task_date: today,
+                    created_at: new Date().toISOString(),
+                    parent_id: 'demo-2',
+                },
+            ],
+        },
+        {
+            id: 'demo-3',
+            user_id: 'demo-user-123',
+            title: '⚙️ Configure Supabase to persist data',
+            done: false,
+            task_date: today,
+            created_at: new Date().toISOString(),
+            parent_id: null,
+            subtasks: [],
+        },
+    ];
+};
+
+// Helper to organize flat todos into parent-child structure
+function organizeTodos(flatTodos: Todo[]): Todo[] {
+    const todoMap = new Map<string, Todo>();
+    const rootTodos: Todo[] = [];
+
+    // First pass: create map and initialize subtasks array
+    flatTodos.forEach((todo) => {
+        todoMap.set(todo.id, { ...todo, subtasks: [] });
+    });
+
+    // Second pass: organize into hierarchy
+    flatTodos.forEach((todo) => {
+        const todoWithSubtasks = todoMap.get(todo.id)!;
+        if (todo.parent_id) {
+            const parent = todoMap.get(todo.parent_id);
+            if (parent) {
+                parent.subtasks = parent.subtasks || [];
+                parent.subtasks.push(todoWithSubtasks);
+            }
+        } else {
+            rootTodos.push(todoWithSubtasks);
+        }
+    });
+
+    return rootTodos;
+}
+
+export function TodosPage() {
+    const { user, isDemo } = useAuth();
+    const [todos, setTodos] = useState<Todo[]>([]);
+    const [allTodos, setAllTodos] = useState<Todo[]>([]); // Flat list for operations
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const [selectedDate, setSelectedDate] = useState(todayInLimaISO());
+    const [isOperating, setIsOperating] = useState(false);
+
+    const todayDate = todayInLimaISO();
+    const isToday = selectedDate === todayDate;
+
+    const fetchTodos = useCallback(async () => {
+        setLoading(true);
+        setError(null);
+
+        // Demo mode: use local data
+        if (isDemo || !isSupabaseConfigured) {
+            const demoTodos = createDemoTodos().filter(t => t.task_date === selectedDate);
+            setTodos(demoTodos);
+            // Flatten for demo
+            const flat: Todo[] = [];
+            demoTodos.forEach(t => {
+                flat.push(t);
+                t.subtasks?.forEach(s => flat.push(s));
+            });
+            setAllTodos(flat);
+            setLoading(false);
+            return;
+        }
+
+        if (!user) return;
+
+        try {
+            const { data, error: fetchError } = await supabase
+                .from('todos')
+                .select('*')
+                .eq('user_id', user.id)
+                .eq('task_date', selectedDate)
+                .order('created_at', { ascending: false });
+
+            if (fetchError) {
+                throw fetchError;
+            }
+
+            const flatTodos = (data || []) as Todo[];
+            setAllTodos(flatTodos);
+            setTodos(organizeTodos(flatTodos));
+        } catch (err) {
+            console.error('Error fetching todos:', err);
+            setError('Error loading tasks. Please try again.');
+        } finally {
+            setLoading(false);
+        }
+    }, [user, selectedDate, isDemo]);
+
+    useEffect(() => {
+        fetchTodos();
+    }, [fetchTodos]);
+
+    // Re-organize when allTodos changes
+    useEffect(() => {
+        if (!loading) {
+            setTodos(organizeTodos(allTodos));
+        }
+    }, [allTodos, loading]);
+
+    const handleAddTodo = async (title: string) => {
+        setIsOperating(true);
+        setError(null);
+
+        // Demo mode: add locally
+        if (isDemo || !isSupabaseConfigured) {
+            const newTodo: Todo = {
+                id: `demo-${Date.now()}`,
+                user_id: 'demo-user-123',
+                title,
+                done: false,
+                task_date: todayDate,
+                created_at: new Date().toISOString(),
+                parent_id: null,
+                subtasks: [],
+            };
+            if (isToday) {
+                setAllTodos((prev) => [newTodo, ...prev]);
+            }
+            setIsOperating(false);
+            return;
+        }
+
+        if (!user) return;
+
+        try {
+            const { data, error: insertError } = await supabase
+                .from('todos')
+                .insert({
+                    title,
+                    task_date: todayDate,
+                    user_id: user.id,
+                    parent_id: null,
+                })
+                .select()
+                .single();
+
+            if (insertError) {
+                throw insertError;
+            }
+
+            if (isToday && data) {
+                setAllTodos((prev) => [data as Todo, ...prev]);
+            }
+        } catch (err) {
+            console.error('Error adding todo:', err);
+            setError('Error adding task. Please try again.');
+        } finally {
+            setIsOperating(false);
+        }
+    };
+
+    const handleAddSubtask = async (parentId: string, title: string) => {
+        setIsOperating(true);
+        setError(null);
+
+        // Demo mode: add locally
+        if (isDemo || !isSupabaseConfigured) {
+            const newSubtask: Todo = {
+                id: `demo-sub-${Date.now()}`,
+                user_id: 'demo-user-123',
+                title,
+                done: false,
+                task_date: todayDate,
+                created_at: new Date().toISOString(),
+                parent_id: parentId,
+            };
+            setAllTodos((prev) => [...prev, newSubtask]);
+            setIsOperating(false);
+            return;
+        }
+
+        if (!user) return;
+
+        try {
+            const { data, error: insertError } = await supabase
+                .from('todos')
+                .insert({
+                    title,
+                    task_date: todayDate,
+                    user_id: user.id,
+                    parent_id: parentId,
+                })
+                .select()
+                .single();
+
+            if (insertError) {
+                throw insertError;
+            }
+
+            if (data) {
+                setAllTodos((prev) => [...prev, data as Todo]);
+            }
+        } catch (err) {
+            console.error('Error adding subtask:', err);
+            setError('Error adding subtask. Please try again.');
+        } finally {
+            setIsOperating(false);
+        }
+    };
+
+    const handleToggleTodo = async (id: string, done: boolean) => {
+        setIsOperating(true);
+        setError(null);
+
+        // Demo mode: toggle locally
+        if (isDemo || !isSupabaseConfigured) {
+            setAllTodos((prev) =>
+                prev.map((todo) => (todo.id === id ? { ...todo, done } : todo))
+            );
+            setIsOperating(false);
+            return;
+        }
+
+        try {
+            const { error: updateError } = await supabase
+                .from('todos')
+                .update({ done })
+                .eq('id', id);
+
+            if (updateError) {
+                throw updateError;
+            }
+
+            setAllTodos((prev) =>
+                prev.map((todo) => (todo.id === id ? { ...todo, done } : todo))
+            );
+        } catch (err) {
+            console.error('Error toggling todo:', err);
+            setError('Error updating task. Please try again.');
+        } finally {
+            setIsOperating(false);
+        }
+    };
+
+    const handleDeleteTodo = async (id: string) => {
+        setIsOperating(true);
+        setError(null);
+
+        // Demo mode: delete locally (including subtasks)
+        if (isDemo || !isSupabaseConfigured) {
+            setAllTodos((prev) => prev.filter((todo) => todo.id !== id && todo.parent_id !== id));
+            setIsOperating(false);
+            return;
+        }
+
+        try {
+            const { error: deleteError } = await supabase
+                .from('todos')
+                .delete()
+                .eq('id', id);
+
+            if (deleteError) {
+                throw deleteError;
+            }
+
+            // Remove todo and its subtasks from local state
+            setAllTodos((prev) => prev.filter((todo) => todo.id !== id && todo.parent_id !== id));
+        } catch (err) {
+            console.error('Error deleting todo:', err);
+            setError('Error deleting task. Please try again.');
+        } finally {
+            setIsOperating(false);
+        }
+    };
+
+    const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setSelectedDate(e.target.value);
+    };
+
+    const goToToday = () => {
+        setSelectedDate(todayDate);
+    };
+
+    // Count only main tasks (not subtasks) for progress
+    const mainTodos = todos;
+    const completedCount = allTodos.filter((t) => t.done).length;
+    const totalCount = allTodos.length;
+
+    return (
+        <div className="min-h-screen bg-gray-50">
+            <Navbar />
+
+            <main className="max-w-2xl mx-auto px-4 py-8">
+                {/* Demo Banner */}
+                {isDemo && (
+                    <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                        <div className="flex items-start gap-3">
+                            <span className="text-2xl">🎨</span>
+                            <div>
+                                <p className="font-medium text-amber-800">Demo Mode</p>
+                                <p className="text-sm text-amber-700 mt-1">
+                                    Data is temporary and won't be saved. Configure Supabase for persistence.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Header */}
+                <div className="mb-8">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                        <div>
+                            <h2 className="text-2xl font-bold text-gray-900">
+                                {isToday ? "Today's Tasks" : 'History'}
+                            </h2>
+                            <p className="text-gray-600 mt-1 first-letter:uppercase">
+                                {formatDateForDisplay(selectedDate)}
+                            </p>
+                        </div>
+
+                        {/* Date Selector */}
+                        <div className="flex items-center gap-2">
+                            <input
+                                type="date"
+                                value={selectedDate}
+                                onChange={handleDateChange}
+                                max={todayDate}
+                                className="px-3 py-2 border border-gray-300 rounded-lg shadow-sm
+                         focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500
+                         text-sm"
+                            />
+                            {!isToday && (
+                                <button
+                                    onClick={goToToday}
+                                    className="px-3 py-2 text-sm font-medium text-indigo-600 bg-indigo-50
+                           hover:bg-indigo-100 rounded-lg transition-colors duration-200"
+                                >
+                                    Today
+                                </button>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Progress */}
+                    {totalCount > 0 && (
+                        <div className="mt-4">
+                            <div className="flex items-center justify-between text-sm text-gray-600 mb-2">
+                                <span>Total progress</span>
+                                <span>{completedCount} of {totalCount} completed</span>
+                            </div>
+                            <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                                <div
+                                    className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 transition-all duration-500"
+                                    style={{ width: `${(completedCount / totalCount) * 100}%` }}
+                                />
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                {/* Add Todo Form - Only show for today */}
+                {isToday && (
+                    <div className="mb-6">
+                        <TodoForm onAdd={handleAddTodo} disabled={isOperating} />
+                    </div>
+                )}
+
+                {/* Error Message */}
+                {error && (
+                    <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+                        <p className="text-sm text-red-600">{error}</p>
+                    </div>
+                )}
+
+                {/* Todos List */}
+                {loading ? (
+                    <div className="flex flex-col items-center justify-center py-12">
+                        <div className="animate-spin rounded-full h-10 w-10 border-4 border-indigo-500 border-t-transparent mb-4"></div>
+                        <p className="text-gray-600">Loading tasks...</p>
+                    </div>
+                ) : mainTodos.length === 0 ? (
+                    <div className="text-center py-12">
+                        <div className="inline-flex items-center justify-center w-16 h-16 bg-gray-100 rounded-full mb-4">
+                            <span className="text-3xl">📝</span>
+                        </div>
+                        <p className="text-gray-600">
+                            {isToday
+                                ? "You don't have any tasks for today. Add one!"
+                                : 'No tasks recorded for this date.'}
+                        </p>
+                    </div>
+                ) : (
+                    <div className="space-y-3">
+                        {mainTodos.map((todo) => (
+                            <TodoItem
+                                key={todo.id}
+                                todo={todo}
+                                onToggle={handleToggleTodo}
+                                onDelete={handleDeleteTodo}
+                                onAddSubtask={isToday ? handleAddSubtask : undefined}
+                                disabled={isOperating}
+                            />
+                        ))}
+                    </div>
+                )}
+
+                {/* Footer Stats */}
+                {!loading && totalCount > 0 && completedCount === totalCount && (
+                    <div className="mt-8 text-center py-6 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-200">
+                        <span className="text-4xl mb-2 block">🎉</span>
+                        <p className="text-green-700 font-medium">
+                            Congratulations! You completed all your tasks
+                            {isToday ? ' for today' : ' for this day'}.
+                        </p>
+                    </div>
+                )}
+            </main>
+        </div>
+    );
+}
