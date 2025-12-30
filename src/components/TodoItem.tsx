@@ -5,6 +5,7 @@ interface TodoItemProps {
     todo: Todo;
     onToggle: (id: string, done: boolean) => Promise<void>;
     onDelete: (id: string) => Promise<void>;
+    onUpdate: (id: string, title: string) => Promise<void>;
     onAddSubtask?: (parentId: string, title: string) => Promise<void>;
     disabled?: boolean;
     isSubtask?: boolean;
@@ -14,6 +15,7 @@ export function TodoItem({
     todo,
     onToggle,
     onDelete,
+    onUpdate,
     onAddSubtask,
     disabled = false,
     isSubtask = false
@@ -21,6 +23,11 @@ export function TodoItem({
     const [showSubtaskInput, setShowSubtaskInput] = useState(false);
     const [subtaskTitle, setSubtaskTitle] = useState('');
     const [isAddingSubtask, setIsAddingSubtask] = useState(false);
+
+    // Editing state
+    const [isEditing, setIsEditing] = useState(false);
+    const [editTitle, setEditTitle] = useState(todo.title);
+    const [isSaving, setIsSaving] = useState(false);
 
     // Check if this task has subtasks
     const hasSubtasks = todo.subtasks && todo.subtasks.length > 0;
@@ -39,6 +46,26 @@ export function TodoItem({
 
     const handleDelete = async () => {
         await onDelete(todo.id);
+    };
+
+    const handleUpdate = async () => {
+        const trimmedTitle = editTitle.trim();
+        if (!trimmedTitle || trimmedTitle === todo.title) {
+            setIsEditing(false);
+            setEditTitle(todo.title);
+            return;
+        }
+
+        setIsSaving(true);
+        try {
+            await onUpdate(todo.id, trimmedTitle);
+            setIsEditing(false);
+        } catch (err) {
+            console.error('Error updating task:', err);
+            setEditTitle(todo.title);
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     const handleAddSubtask = async () => {
@@ -60,6 +87,15 @@ export function TodoItem({
         } else if (e.key === 'Escape') {
             setShowSubtaskInput(false);
             setSubtaskTitle('');
+        }
+    };
+
+    const handleEditKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter') {
+            handleUpdate();
+        } else if (e.key === 'Escape') {
+            setIsEditing(false);
+            setEditTitle(todo.title);
         }
     };
 
@@ -96,7 +132,7 @@ export function TodoItem({
                     // For tasks without subtasks: normal clickable checkbox
                     <button
                         onClick={handleToggle}
-                        disabled={disabled}
+                        disabled={disabled || isSaving}
                         className={`flex-shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center
                        transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed
                        ${todo.done
@@ -113,12 +149,41 @@ export function TodoItem({
                 )}
 
                 <div className="flex-grow min-w-0">
-                    <span
-                        className={`block text-gray-800 transition-all duration-200
-                       ${effectiveDone ? 'line-through text-gray-500' : ''}`}
-                    >
-                        {todo.title}
-                    </span>
+                    {isEditing ? (
+                        <input
+                            type="text"
+                            value={editTitle}
+                            onChange={(e) => setEditTitle(e.target.value)}
+                            onKeyDown={handleEditKeyDown}
+                            onBlur={handleUpdate}
+                            disabled={isSaving}
+                            autoFocus
+                            className="w-full px-2 py-1 text-gray-800 border-b-2 border-indigo-500 focus:outline-none bg-transparent"
+                        />
+                    ) : (
+                        <span
+                            onClick={(e) => {
+                                if (disabled) return;
+
+                                // Detect Ctrl/Cmd + Click to open links
+                                if (e.ctrlKey || e.metaKey) {
+                                    const urlRegex = /(https?:\/\/[^\s]+)/g;
+                                    const matches = todo.title.match(urlRegex);
+                                    if (matches && matches.length > 0) {
+                                        window.open(matches[0], '_blank', 'noopener,noreferrer');
+                                        return;
+                                    }
+                                }
+
+                                setIsEditing(true);
+                            }}
+                            title={(todo.title.match(/(https?:\/\/[^\s]+)/)) ? "Ctrl + Click para abrir link" : ""}
+                            className={`block text-gray-800 transition-all duration-200 cursor-text
+                           ${effectiveDone ? 'line-through text-gray-500' : ''}`}
+                        >
+                            {todo.title}
+                        </span>
+                    )}
                     {hasSubtasks && (
                         <span className={`text-xs mt-1 ${isAutoCompleted ? 'text-green-600' : 'text-gray-500'}`}>
                             {isAutoCompleted
@@ -133,7 +198,7 @@ export function TodoItem({
                     {!isSubtask && onAddSubtask && (
                         <button
                             onClick={() => setShowSubtaskInput(!showSubtaskInput)}
-                            disabled={disabled}
+                            disabled={disabled || isSaving}
                             className="flex-shrink-0 p-2 text-gray-400 hover:text-indigo-500 hover:bg-indigo-50 
                          rounded-lg transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                             aria-label="Add subtask"
@@ -148,7 +213,7 @@ export function TodoItem({
 
                     <button
                         onClick={handleDelete}
-                        disabled={disabled}
+                        disabled={disabled || isSaving}
                         className="flex-shrink-0 p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 
                        rounded-lg transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                         aria-label="Delete task"
@@ -206,6 +271,7 @@ export function TodoItem({
                             todo={subtask}
                             onToggle={onToggle}
                             onDelete={onDelete}
+                            onUpdate={onUpdate}
                             disabled={disabled}
                             isSubtask={true}
                         />

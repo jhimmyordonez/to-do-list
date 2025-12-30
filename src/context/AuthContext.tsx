@@ -12,49 +12,23 @@ interface AuthContextType {
     user: User | null;
     session: Session | null;
     loading: boolean;
-    isDemo: boolean;
-    signUp: (email: string, password: string) => Promise<{ error: AuthError | null }>;
     signIn: (email: string, password: string) => Promise<{ error: AuthError | null }>;
     signOut: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Mock user for demo mode
-const mockUser: User = {
-    id: 'demo-user-123',
-    email: 'demo@example.com',
-    app_metadata: {},
-    user_metadata: {},
-    aud: 'authenticated',
-    created_at: new Date().toISOString(),
-};
-
-const mockSession: Session = {
-    access_token: 'demo-token',
-    refresh_token: 'demo-refresh',
-    expires_in: 3600,
-    expires_at: Date.now() / 1000 + 3600,
-    token_type: 'bearer',
-    user: mockUser,
-};
-
 export function AuthProvider({ children }: { children: ReactNode }) {
     const [user, setUser] = useState<User | null>(null);
     const [session, setSession] = useState<Session | null>(null);
     const [loading, setLoading] = useState(true);
-    const isDemo = !isSupabaseConfigured;
 
     useEffect(() => {
-        if (isDemo) {
-            // Demo mode: no auth, just show the app
-            setUser(null);
-            setSession(null);
+        if (!isSupabaseConfigured) {
             setLoading(false);
             return;
         }
 
-        // Real Supabase mode
         supabase.auth.getSession().then(({ data: { session } }) => {
             setSession(session);
             setUser(session?.user ?? null);
@@ -70,42 +44,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         });
 
         return () => subscription.unsubscribe();
-    }, [isDemo]);
-
-    const signUp = async (email: string, password: string) => {
-        if (isDemo) {
-            // Demo mode: simulate successful registration
-            setUser(mockUser);
-            setSession(mockSession);
-            return { error: null };
-        }
-        const { error } = await supabase.auth.signUp({ email, password });
-        return { error };
-    };
+    }, []);
 
     const signIn = async (email: string, password: string) => {
-        if (isDemo) {
-            // Demo mode: simulate successful login
-            setUser({ ...mockUser, email });
-            setSession(mockSession);
-            return { error: null };
-        }
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         return { error };
     };
 
     const signOut = async () => {
-        if (isDemo) {
-            setUser(null);
-            setSession(null);
-            return;
+        if (isSupabaseConfigured) {
+            await supabase.auth.signOut();
         }
-        await supabase.auth.signOut();
+        setUser(null);
+        setSession(null);
     };
 
     return (
         <AuthContext.Provider
-            value={{ user, session, loading, isDemo, signUp, signIn, signOut }}
+            value={{ user, session, loading, signIn, signOut }}
         >
             {children}
         </AuthContext.Provider>

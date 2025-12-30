@@ -1,7 +1,11 @@
 import { useAuth } from '../context/AuthContext';
 
-export function Navbar() {
-    const { user, signOut, isDemo } = useAuth();
+interface NavbarProps {
+    streak?: number;
+}
+
+export function Navbar({ streak = 0 }: NavbarProps) {
+    const { user, signOut } = useAuth();
 
     const handleSignOut = async () => {
         await signOut();
@@ -14,10 +18,11 @@ export function Navbar() {
                     <div className="flex items-center gap-2">
                         <span className="text-2xl">✅</span>
                         <h1 className="text-xl font-bold text-gray-900">Daily To-Do</h1>
-                        {isDemo && (
-                            <span className="ml-2 px-2 py-0.5 text-xs font-medium bg-amber-100 text-amber-700 rounded-full">
-                                Demo
-                            </span>
+                        {streak > 0 && (
+                            <div className="flex items-center gap-1 bg-orange-50 px-2 py-0.5 rounded-full border border-orange-100">
+                                <span className="text-sm">🔥</span>
+                                <span className="text-sm font-bold text-orange-600">{streak}</span>
+                            </div>
                         )}
                     </div>
 

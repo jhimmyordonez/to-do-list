@@ -5,63 +5,8 @@ import { todayInLimaISO, formatDateForDisplay } from '../lib/todayLima';
 import { Navbar } from '../components/Navbar';
 import { TodoForm } from '../components/TodoForm';
 import { TodoItem } from '../components/TodoItem';
+import { streakService } from '../lib/streakService';
 import type { Todo } from '../types/todo';
-
-// Demo data for when Supabase is not configured
-const createDemoTodos = (): Todo[] => {
-    const today = todayInLimaISO();
-    return [
-        {
-            id: 'demo-1',
-            user_id: 'demo-user-123',
-            title: '✨ Welcome to demo mode',
-            done: true,
-            task_date: today,
-            created_at: new Date().toISOString(),
-            parent_id: null,
-            subtasks: [],
-        },
-        {
-            id: 'demo-2',
-            user_id: 'demo-user-123',
-            title: '📝 Learn how to use the app',
-            done: false,
-            task_date: today,
-            created_at: new Date().toISOString(),
-            parent_id: null,
-            subtasks: [
-                {
-                    id: 'demo-2-1',
-                    user_id: 'demo-user-123',
-                    title: 'Create a new task',
-                    done: true,
-                    task_date: today,
-                    created_at: new Date().toISOString(),
-                    parent_id: 'demo-2',
-                },
-                {
-                    id: 'demo-2-2',
-                    user_id: 'demo-user-123',
-                    title: 'Add subtasks with the + button',
-                    done: false,
-                    task_date: today,
-                    created_at: new Date().toISOString(),
-                    parent_id: 'demo-2',
-                },
-            ],
-        },
-        {
-            id: 'demo-3',
-            user_id: 'demo-user-123',
-            title: '⚙️ Configure Supabase to persist data',
-            done: false,
-            task_date: today,
-            created_at: new Date().toISOString(),
-            parent_id: null,
-            subtasks: [],
-        },
-    ];
-};
 
 // Helper to organize flat todos into parent-child structure
 function organizeTodos(flatTodos: Todo[]): Todo[] {
@@ -91,37 +36,26 @@ function organizeTodos(flatTodos: Todo[]): Todo[] {
 }
 
 export function TodosPage() {
-    const { user, isDemo } = useAuth();
+    const { user } = useAuth();
     const [todos, setTodos] = useState<Todo[]>([]);
     const [allTodos, setAllTodos] = useState<Todo[]>([]); // Flat list for operations
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [selectedDate, setSelectedDate] = useState(todayInLimaISO());
     const [isOperating, setIsOperating] = useState(false);
+    const [streak, setStreak] = useState(streakService.validateStreak());
 
     const todayDate = todayInLimaISO();
     const isToday = selectedDate === todayDate;
 
     const fetchTodos = useCallback(async () => {
-        setLoading(true);
-        setError(null);
-
-        // Demo mode: use local data
-        if (isDemo || !isSupabaseConfigured) {
-            const demoTodos = createDemoTodos().filter(t => t.task_date === selectedDate);
-            setTodos(demoTodos);
-            // Flatten for demo
-            const flat: Todo[] = [];
-            demoTodos.forEach(t => {
-                flat.push(t);
-                t.subtasks?.forEach(s => flat.push(s));
-            });
-            setAllTodos(flat);
+        if (!isSupabaseConfigured || !user) {
             setLoading(false);
             return;
         }
 
-        if (!user) return;
+        setLoading(true);
+        setError(null);
 
         try {
             const { data, error: fetchError } = await supabase
@@ -144,7 +78,7 @@ export function TodosPage() {
         } finally {
             setLoading(false);
         }
-    }, [user, selectedDate, isDemo]);
+    }, [user, selectedDate]);
 
     useEffect(() => {
         fetchTodos();
@@ -154,31 +88,19 @@ export function TodosPage() {
     useEffect(() => {
         if (!loading) {
             setTodos(organizeTodos(allTodos));
+
+            // Update streak if all tasks for today are completed
+            if (isToday && allTodos.length > 0) {
+                const allDone = allTodos.every(t => t.done);
+                const newStreak = streakService.updateStreak(allDone);
+                setStreak(newStreak);
+            }
         }
-    }, [allTodos, loading]);
+    }, [allTodos, loading, isToday]);
 
     const handleAddTodo = async (title: string) => {
         setIsOperating(true);
         setError(null);
-
-        // Demo mode: add locally
-        if (isDemo || !isSupabaseConfigured) {
-            const newTodo: Todo = {
-                id: `demo-${Date.now()}`,
-                user_id: 'demo-user-123',
-                title,
-                done: false,
-                task_date: todayDate,
-                created_at: new Date().toISOString(),
-                parent_id: null,
-                subtasks: [],
-            };
-            if (isToday) {
-                setAllTodos((prev) => [newTodo, ...prev]);
-            }
-            setIsOperating(false);
-            return;
-        }
 
         if (!user) return;
 
@@ -213,22 +135,6 @@ export function TodosPage() {
         setIsOperating(true);
         setError(null);
 
-        // Demo mode: add locally
-        if (isDemo || !isSupabaseConfigured) {
-            const newSubtask: Todo = {
-                id: `demo-sub-${Date.now()}`,
-                user_id: 'demo-user-123',
-                title,
-                done: false,
-                task_date: todayDate,
-                created_at: new Date().toISOString(),
-                parent_id: parentId,
-            };
-            setAllTodos((prev) => [...prev, newSubtask]);
-            setIsOperating(false);
-            return;
-        }
-
         if (!user) return;
 
         try {
@@ -262,15 +168,6 @@ export function TodosPage() {
         setIsOperating(true);
         setError(null);
 
-        // Demo mode: toggle locally
-        if (isDemo || !isSupabaseConfigured) {
-            setAllTodos((prev) =>
-                prev.map((todo) => (todo.id === id ? { ...todo, done } : todo))
-            );
-            setIsOperating(false);
-            return;
-        }
-
         try {
             const { error: updateError } = await supabase
                 .from('todos')
@@ -292,16 +189,34 @@ export function TodosPage() {
         }
     };
 
-    const handleDeleteTodo = async (id: string) => {
+    const handleUpdateTodo = async (id: string, title: string) => {
         setIsOperating(true);
         setError(null);
 
-        // Demo mode: delete locally (including subtasks)
-        if (isDemo || !isSupabaseConfigured) {
-            setAllTodos((prev) => prev.filter((todo) => todo.id !== id && todo.parent_id !== id));
+        try {
+            const { error: updateError } = await supabase
+                .from('todos')
+                .update({ title })
+                .eq('id', id);
+
+            if (updateError) {
+                throw updateError;
+            }
+
+            setAllTodos((prev) =>
+                prev.map((todo) => (todo.id === id ? { ...todo, title } : todo))
+            );
+        } catch (err) {
+            console.error('Error updating todo:', err);
+            setError('Error updating task. Please try again.');
+        } finally {
             setIsOperating(false);
-            return;
         }
+    };
+
+    const handleDeleteTodo = async (id: string) => {
+        setIsOperating(true);
+        setError(null);
 
         try {
             const { error: deleteError } = await supabase
@@ -313,7 +228,6 @@ export function TodosPage() {
                 throw deleteError;
             }
 
-            // Remove todo and its subtasks from local state
             setAllTodos((prev) => prev.filter((todo) => todo.id !== id && todo.parent_id !== id));
         } catch (err) {
             console.error('Error deleting todo:', err);
@@ -331,32 +245,15 @@ export function TodosPage() {
         setSelectedDate(todayDate);
     };
 
-    // Count only main tasks (not subtasks) for progress
     const mainTodos = todos;
     const completedCount = allTodos.filter((t) => t.done).length;
     const totalCount = allTodos.length;
 
     return (
         <div className="min-h-screen bg-gray-50">
-            <Navbar />
+            <Navbar streak={streak} />
 
             <main className="max-w-2xl mx-auto px-4 py-8">
-                {/* Demo Banner */}
-                {isDemo && (
-                    <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
-                        <div className="flex items-start gap-3">
-                            <span className="text-2xl">🎨</span>
-                            <div>
-                                <p className="font-medium text-amber-800">Demo Mode</p>
-                                <p className="text-sm text-amber-700 mt-1">
-                                    Data is temporary and won't be saved. Configure Supabase for persistence.
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                {/* Header */}
                 <div className="mb-8">
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                         <div>
@@ -368,7 +265,6 @@ export function TodosPage() {
                             </p>
                         </div>
 
-                        {/* Date Selector */}
                         <div className="flex items-center gap-2">
                             <input
                                 type="date"
@@ -391,7 +287,6 @@ export function TodosPage() {
                         </div>
                     </div>
 
-                    {/* Progress */}
                     {totalCount > 0 && (
                         <div className="mt-4">
                             <div className="flex items-center justify-between text-sm text-gray-600 mb-2">
@@ -408,21 +303,18 @@ export function TodosPage() {
                     )}
                 </div>
 
-                {/* Add Todo Form - Only show for today */}
                 {isToday && (
                     <div className="mb-6">
                         <TodoForm onAdd={handleAddTodo} disabled={isOperating} />
                     </div>
                 )}
 
-                {/* Error Message */}
                 {error && (
                     <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
                         <p className="text-sm text-red-600">{error}</p>
                     </div>
                 )}
 
-                {/* Todos List */}
                 {loading ? (
                     <div className="flex flex-col items-center justify-center py-12">
                         <div className="animate-spin rounded-full h-10 w-10 border-4 border-indigo-500 border-t-transparent mb-4"></div>
@@ -447,6 +339,7 @@ export function TodosPage() {
                                 todo={todo}
                                 onToggle={handleToggleTodo}
                                 onDelete={handleDeleteTodo}
+                                onUpdate={handleUpdateTodo}
                                 onAddSubtask={isToday ? handleAddSubtask : undefined}
                                 disabled={isOperating}
                             />
@@ -454,7 +347,6 @@ export function TodosPage() {
                     </div>
                 )}
 
-                {/* Footer Stats */}
                 {!loading && totalCount > 0 && completedCount === totalCount && (
                     <div className="mt-8 text-center py-6 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-200">
                         <span className="text-4xl mb-2 block">🎉</span>
