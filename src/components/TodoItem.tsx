@@ -157,6 +157,7 @@ export function TodoItem({
                             onKeyDown={handleEditKeyDown}
                             onBlur={handleUpdate}
                             disabled={isSaving}
+                            maxLength={500}
                             autoFocus
                             className="w-full px-2 py-1 text-gray-800 border-b-2 border-indigo-500 focus:outline-none bg-transparent"
                         />
@@ -236,6 +237,7 @@ export function TodoItem({
                         onKeyDown={handleKeyDown}
                         placeholder="New subtask..."
                         disabled={isAddingSubtask}
+                        maxLength={500}
                         autoFocus
                         className="flex-grow px-3 py-2 text-sm border border-gray-300 rounded-lg shadow-sm 
                        focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 

@@ -32,6 +32,7 @@ export function TodoForm({ onAdd, disabled = false }: TodoFormProps) {
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="What do you need to do today?"
                 disabled={disabled || isSubmitting}
+                maxLength={500}
                 className="flex-grow px-4 py-3 border border-gray-300 rounded-lg shadow-sm 
                    focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 
                    placeholder-gray-400 disabled:bg-gray-100 disabled:cursor-not-allowed

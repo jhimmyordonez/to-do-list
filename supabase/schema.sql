@@ -47,3 +47,22 @@ CREATE POLICY "update_own_todos" ON public.todos
 CREATE POLICY "delete_own_todos" ON public.todos
   FOR DELETE TO authenticated
   USING (auth.uid() = user_id);
+
+-- ============================================
+-- Security Pattern: Enforce user_id on insert via trigger
+-- This prevents users from trying to insert a todo with another user's user_id.
+-- It also automatically sets the user_id if not provided.
+-- ============================================
+
+CREATE OR REPLACE FUNCTION public.handle_todo_insert()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.user_id := auth.uid();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE TRIGGER on_todo_insert
+  BEFORE INSERT ON public.todos
+  FOR EACH ROW EXECUTE PROCEDURE public.handle_todo_insert();
+```
