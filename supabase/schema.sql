@@ -65,4 +65,3 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 CREATE TRIGGER on_todo_insert
   BEFORE INSERT ON public.todos
   FOR EACH ROW EXECUTE PROCEDURE public.handle_todo_insert();
-```
