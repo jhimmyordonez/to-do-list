@@ -4,6 +4,7 @@ import { ProtectedRoute } from './components/ProtectedRoute';
 import { LoginPage } from './pages/LoginPage';
 import { TodosPage } from './pages/TodosPage';
 import { GoalsPage } from './pages/GoalsPage';
+import { SummaryPage } from './pages/SummaryPage';
 
 function App() {
   return (
@@ -17,6 +18,7 @@ function App() {
           <Route element={<ProtectedRoute />}>
             <Route path="/todos" element={<TodosPage />} />
             <Route path="/goals" element={<GoalsPage />} />
+            <Route path="/summary" element={<SummaryPage />} />
           </Route>
 
           {/* Default redirect */}

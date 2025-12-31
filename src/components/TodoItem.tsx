@@ -109,24 +109,14 @@ export function TodoItem({
             >
                 {/* Checkbox / Status indicator */}
                 {hasSubtasks ? (
-                    // For tasks with subtasks: show progress indicator (not clickable)
+                    // For tasks with subtasks: show only progress counter (no circle)
                     <div
-                        className={`flex-shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center
-                       transition-colors duration-200
-                       ${isAutoCompleted
-                                ? 'bg-green-500 border-green-500 text-white'
-                                : 'border-gray-300 bg-gray-50'}`}
+                        className="flex-shrink-0 w-6 h-6 flex items-center justify-center"
                         title={isAutoCompleted ? 'All subtasks completed' : `${completedSubtasks}/${subtaskCount} subtasks`}
                     >
-                        {isAutoCompleted ? (
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                            </svg>
-                        ) : (
-                            <span className="text-xs font-medium text-gray-500">
-                                {completedSubtasks}
-                            </span>
-                        )}
+                        <span className={`text-xs font-bold ${isAutoCompleted ? 'text-green-600' : 'text-gray-400'}`}>
+                            {completedSubtasks}/{subtaskCount}
+                        </span>
                     </div>
                 ) : (
                     // For tasks without subtasks: normal clickable checkbox
@@ -186,11 +176,26 @@ export function TodoItem({
                         </span>
                     )}
                     {hasSubtasks && (
-                        <span className={`text-xs mt-1 ${isAutoCompleted ? 'text-green-600' : 'text-gray-500'}`}>
+                        <span className={`text-xs mt-1 block ${isAutoCompleted ? 'text-green-600' : 'text-gray-500'}`}>
                             {isAutoCompleted
                                 ? '✓ All subtasks completed'
                                 : `${completedSubtasks}/${subtaskCount} subtasks completed`}
                         </span>
+                    )}
+                    {/* Category and repeat badges */}
+                    {!isSubtask && (todo.category || todo.repeat_days > 0) && (
+                        <div className="flex gap-2 mt-1 flex-wrap">
+                            {todo.category && (
+                                <span className="text-xs px-2 py-0.5 bg-blue-50 text-blue-700 rounded-full border border-blue-100">
+                                    📁 {todo.category}
+                                </span>
+                            )}
+                            {todo.repeat_days > 0 && (
+                                <span className="text-xs px-2 py-0.5 bg-purple-50 text-purple-700 rounded-full border border-purple-100">
+                                    🔄 {todo.repeat_days} days
+                                </span>
+                            )}
+                        </div>
                     )}
                 </div>
 

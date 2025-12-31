@@ -3,7 +3,7 @@
 -- ============================================
 
 -- Table: public.todos
--- Stores all user tasks with date tracking and subtask support
+-- Stores all user tasks with date tracking, subtask support, and recurring options
 CREATE TABLE public.todos (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -11,7 +11,11 @@ CREATE TABLE public.todos (
   done boolean NOT NULL DEFAULT false,
   task_date date NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
-  parent_id uuid REFERENCES public.todos(id) ON DELETE CASCADE -- null = main task, uuid = subtask
+  parent_id uuid REFERENCES public.todos(id) ON DELETE CASCADE, -- null = main task, uuid = subtask
+  category text, -- User-defined category for grouping
+  repeat_days integer NOT NULL DEFAULT 0, -- 0 = no repeat, N = repeat for N days
+  repeat_start_date date, -- When the recurring series started
+  template_id uuid -- Links all instances of the same recurring task
 );
 
 -- Index for optimized queries by user and date
@@ -19,6 +23,12 @@ CREATE INDEX idx_todos_user_date ON public.todos(user_id, task_date);
 
 -- Index for subtask queries
 CREATE INDEX idx_todos_parent ON public.todos(parent_id);
+
+-- Index for recurring task queries
+CREATE INDEX idx_todos_template ON public.todos(template_id);
+
+-- Index for category queries
+CREATE INDEX idx_todos_category ON public.todos(user_id, category);
 
 -- Enable Row Level Security
 ALTER TABLE public.todos ENABLE ROW LEVEL SECURITY;
@@ -79,11 +89,15 @@ CREATE TABLE public.monthly_goals (
   done boolean NOT NULL DEFAULT false,
   target_month date NOT NULL, -- First day of the target month (e.g., 2025-01-01)
   created_at timestamptz NOT NULL DEFAULT now(),
-  completed_at timestamptz -- When the goal was marked as completed
+  completed_at timestamptz, -- When the goal was marked as completed
+  parent_id uuid REFERENCES public.monthly_goals(id) ON DELETE CASCADE -- null = main goal, uuid = sub-goal
 );
 
 -- Index for optimized queries by user and month
 CREATE INDEX idx_monthly_goals_user_month ON public.monthly_goals(user_id, target_month);
+
+-- Index for sub-goal queries
+CREATE INDEX idx_monthly_goals_parent ON public.monthly_goals(parent_id);
 
 -- Enable Row Level Security
 ALTER TABLE public.monthly_goals ENABLE ROW LEVEL SECURITY;

@@ -98,30 +98,51 @@ export function TodosPage() {
         }
     }, [allTodos, loading, isToday]);
 
-    const handleAddTodo = async (title: string) => {
+    const handleAddTodo = async (title: string, category: string | null, repeatDays: number) => {
         setIsOperating(true);
         setError(null);
 
         if (!user) return;
 
         try {
-            const { data, error: insertError } = await supabase
-                .from('todos')
-                .insert({
+            const templateId = crypto.randomUUID();
+            const tasksToCreate = [];
+
+            // Create task for today + future days if repeating
+            const totalDays = repeatDays > 0 ? repeatDays : 1;
+
+            for (let i = 0; i < totalDays; i++) {
+                const taskDate = new Date(todayDate);
+                taskDate.setDate(taskDate.getDate() + i);
+                const dateStr = taskDate.toISOString().split('T')[0];
+
+                tasksToCreate.push({
                     title,
-                    task_date: todayDate,
+                    task_date: dateStr,
                     user_id: user.id,
                     parent_id: null,
-                })
-                .select()
-                .single();
+                    category: category,
+                    repeat_days: repeatDays,
+                    repeat_start_date: repeatDays > 0 ? todayDate : null,
+                    template_id: repeatDays > 0 ? templateId : null,
+                });
+            }
+
+            const { data, error: insertError } = await supabase
+                .from('todos')
+                .insert(tasksToCreate)
+                .select();
 
             if (insertError) {
                 throw insertError;
             }
 
-            if (isToday && data) {
-                setAllTodos((prev) => [data as Todo, ...prev]);
+            // Add today's task to the list
+            if (isToday && data && data.length > 0) {
+                const todayTask = data.find((t: Todo) => t.task_date === todayDate);
+                if (todayTask) {
+                    setAllTodos((prev) => [todayTask as Todo, ...prev]);
+                }
             }
         } catch (err) {
             console.error('Error adding todo:', err);
