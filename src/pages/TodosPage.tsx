@@ -1,54 +1,35 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
+import { isSupabaseConfigured } from '../lib/supabaseClient';
 import { todayInLimaISO, formatDateForDisplay } from '../lib/todayLima';
 import { Navbar } from '../components/Navbar';
-import { TodoForm } from '../components/TodoForm';
-import { TodoItem } from '../components/TodoItem';
 import { streakService } from '../lib/streakService';
-import type { Todo } from '../types/todo';
+import { fetchActiveSubtasksForToday, toggleSubtaskCompletion } from '../lib/objectiveService';
+import type { ObjectiveSubtask } from '../types/objective';
 
-// Helper to organize flat todos into parent-child structure
-function organizeTodos(flatTodos: Todo[]): Todo[] {
-    const todoMap = new Map<string, Todo>();
-    const rootTodos: Todo[] = [];
-
-    // First pass: create map and initialize subtasks array
-    flatTodos.forEach((todo) => {
-        todoMap.set(todo.id, { ...todo, subtasks: [] });
-    });
-
-    // Second pass: organize into hierarchy
-    flatTodos.forEach((todo) => {
-        const todoWithSubtasks = todoMap.get(todo.id)!;
-        if (todo.parent_id) {
-            const parent = todoMap.get(todo.parent_id);
-            if (parent) {
-                parent.subtasks = parent.subtasks || [];
-                parent.subtasks.push(todoWithSubtasks);
-            }
-        } else {
-            rootTodos.push(todoWithSubtasks);
-        }
-    });
-
-    return rootTodos;
+interface ActiveSubtaskItem {
+    subtask: ObjectiveSubtask;
+    taskTitle: string;
+    taskCategory: string;
+    objectiveTitle: string;
+    completed: boolean;
 }
 
 export function TodosPage() {
     const { user } = useAuth();
-    const [todos, setTodos] = useState<Todo[]>([]);
-    const [allTodos, setAllTodos] = useState<Todo[]>([]); // Flat list for operations
+    const navigate = useNavigate();
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [selectedDate, setSelectedDate] = useState(todayInLimaISO());
     const [isOperating, setIsOperating] = useState(false);
     const [streak, setStreak] = useState(streakService.validateStreak());
+    const [subtasks, setSubtasks] = useState<ActiveSubtaskItem[]>([]);
 
     const todayDate = todayInLimaISO();
     const isToday = selectedDate === todayDate;
 
-    const fetchTodos = useCallback(async () => {
+    const fetchData = useCallback(async () => {
         if (!isSupabaseConfigured || !user) {
             setLoading(false);
             return;
@@ -58,201 +39,49 @@ export function TodosPage() {
         setError(null);
 
         try {
-            const { data, error: fetchError } = await supabase
-                .from('todos')
-                .select('*')
-                .eq('user_id', user.id)
-                .eq('task_date', selectedDate)
-                .order('created_at', { ascending: false });
+            const data = await fetchActiveSubtasksForToday(user.id, selectedDate);
+            setSubtasks(data);
 
-            if (fetchError) {
-                throw fetchError;
+            // Update streak
+            if (isToday && data.length > 0) {
+                const allCompleted = data.every(s => s.completed);
+                const newStreak = streakService.updateStreak(allCompleted);
+                setStreak(newStreak);
             }
-
-            const flatTodos = (data || []) as Todo[];
-            setAllTodos(flatTodos);
-            setTodos(organizeTodos(flatTodos));
         } catch (err) {
-            console.error('Error fetching todos:', err);
+            console.error('Error fetching tasks:', err);
             setError('Error loading tasks. Please try again.');
         } finally {
             setLoading(false);
         }
-    }, [user, selectedDate]);
+    }, [user, selectedDate, isToday]);
 
     useEffect(() => {
-        fetchTodos();
-    }, [fetchTodos]);
+        fetchData();
+    }, [fetchData]);
 
-    // Re-organize when allTodos changes
-    useEffect(() => {
-        if (!loading) {
-            setTodos(organizeTodos(allTodos));
+    const handleToggle = async (subtaskId: string, completed: boolean) => {
+        if (!user) return;
+        setIsOperating(true);
 
-            // Update streak if all tasks for today are completed
-            if (isToday && allTodos.length > 0) {
-                const allDone = allTodos.every(t => t.done);
-                const newStreak = streakService.updateStreak(allDone);
+        try {
+            await toggleSubtaskCompletion(subtaskId, user.id, selectedDate, completed);
+            setSubtasks(prev => prev.map(item =>
+                item.subtask.id === subtaskId ? { ...item, completed } : item
+            ));
+
+            // Update streak
+            const updatedSubtasks = subtasks.map(item =>
+                item.subtask.id === subtaskId ? { ...item, completed } : item
+            );
+            if (isToday && updatedSubtasks.length > 0) {
+                const allCompleted = updatedSubtasks.every(s => s.completed);
+                const newStreak = streakService.updateStreak(allCompleted);
                 setStreak(newStreak);
             }
-        }
-    }, [allTodos, loading, isToday]);
-
-    const handleAddTodo = async (title: string, category: string | null, repeatDays: number) => {
-        setIsOperating(true);
-        setError(null);
-
-        if (!user) return;
-
-        try {
-            const templateId = crypto.randomUUID();
-            const tasksToCreate = [];
-
-            // Create task for today + future days if repeating
-            const totalDays = repeatDays > 0 ? repeatDays : 1;
-
-            for (let i = 0; i < totalDays; i++) {
-                const taskDate = new Date(todayDate);
-                taskDate.setDate(taskDate.getDate() + i);
-                const dateStr = taskDate.toISOString().split('T')[0];
-
-                tasksToCreate.push({
-                    title,
-                    task_date: dateStr,
-                    user_id: user.id,
-                    parent_id: null,
-                    category: category,
-                    repeat_days: repeatDays,
-                    repeat_start_date: repeatDays > 0 ? todayDate : null,
-                    template_id: repeatDays > 0 ? templateId : null,
-                });
-            }
-
-            const { data, error: insertError } = await supabase
-                .from('todos')
-                .insert(tasksToCreate)
-                .select();
-
-            if (insertError) {
-                throw insertError;
-            }
-
-            // Add today's task to the list
-            if (isToday && data && data.length > 0) {
-                const todayTask = data.find((t: Todo) => t.task_date === todayDate);
-                if (todayTask) {
-                    setAllTodos((prev) => [todayTask as Todo, ...prev]);
-                }
-            }
         } catch (err) {
-            console.error('Error adding todo:', err);
-            setError('Error adding task. Please try again.');
-        } finally {
-            setIsOperating(false);
-        }
-    };
-
-    const handleAddSubtask = async (parentId: string, title: string) => {
-        setIsOperating(true);
-        setError(null);
-
-        if (!user) return;
-
-        try {
-            const { data, error: insertError } = await supabase
-                .from('todos')
-                .insert({
-                    title,
-                    task_date: todayDate,
-                    user_id: user.id,
-                    parent_id: parentId,
-                })
-                .select()
-                .single();
-
-            if (insertError) {
-                throw insertError;
-            }
-
-            if (data) {
-                setAllTodos((prev) => [...prev, data as Todo]);
-            }
-        } catch (err) {
-            console.error('Error adding subtask:', err);
-            setError('Error adding subtask. Please try again.');
-        } finally {
-            setIsOperating(false);
-        }
-    };
-
-    const handleToggleTodo = async (id: string, done: boolean) => {
-        setIsOperating(true);
-        setError(null);
-
-        try {
-            const { error: updateError } = await supabase
-                .from('todos')
-                .update({ done })
-                .eq('id', id);
-
-            if (updateError) {
-                throw updateError;
-            }
-
-            setAllTodos((prev) =>
-                prev.map((todo) => (todo.id === id ? { ...todo, done } : todo))
-            );
-        } catch (err) {
-            console.error('Error toggling todo:', err);
-            setError('Error updating task. Please try again.');
-        } finally {
-            setIsOperating(false);
-        }
-    };
-
-    const handleUpdateTodo = async (id: string, title: string) => {
-        setIsOperating(true);
-        setError(null);
-
-        try {
-            const { error: updateError } = await supabase
-                .from('todos')
-                .update({ title })
-                .eq('id', id);
-
-            if (updateError) {
-                throw updateError;
-            }
-
-            setAllTodos((prev) =>
-                prev.map((todo) => (todo.id === id ? { ...todo, title } : todo))
-            );
-        } catch (err) {
-            console.error('Error updating todo:', err);
-            setError('Error updating task. Please try again.');
-        } finally {
-            setIsOperating(false);
-        }
-    };
-
-    const handleDeleteTodo = async (id: string) => {
-        setIsOperating(true);
-        setError(null);
-
-        try {
-            const { error: deleteError } = await supabase
-                .from('todos')
-                .delete()
-                .eq('id', id);
-
-            if (deleteError) {
-                throw deleteError;
-            }
-
-            setAllTodos((prev) => prev.filter((todo) => todo.id !== id && todo.parent_id !== id));
-        } catch (err) {
-            console.error('Error deleting todo:', err);
-            setError('Error deleting task. Please try again.');
+            console.error('Error toggling task:', err);
+            setError('Error updating task.');
         } finally {
             setIsOperating(false);
         }
@@ -266,22 +95,31 @@ export function TodosPage() {
         setSelectedDate(todayDate);
     };
 
-    const mainTodos = todos;
-    const completedCount = allTodos.filter((t) => t.done).length;
-    const totalCount = allTodos.length;
+    // Group subtasks by category
+    const groupedByCategory = subtasks.reduce((acc, item) => {
+        if (!acc[item.taskCategory]) {
+            acc[item.taskCategory] = [];
+        }
+        acc[item.taskCategory].push(item);
+        return acc;
+    }, {} as Record<string, ActiveSubtaskItem[]>);
+
+    const completedCount = subtasks.filter(s => s.completed).length;
+    const totalCount = subtasks.length;
 
     return (
         <div className="min-h-screen bg-gray-50">
             <Navbar streak={streak} />
 
             <main className="max-w-2xl mx-auto px-4 py-8">
+                {/* Header */}
                 <div className="mb-8">
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                         <div>
                             <h2 className="text-2xl font-bold text-gray-900">
-                                {isToday ? "Today's Tasks" : 'History'}
+                                {isToday ? "Today's Tasks" : 'Task History'}
                             </h2>
-                            <p className="text-gray-600 mt-1 first-letter:uppercase">
+                            <p className="text-gray-500 mt-1">
                                 {formatDateForDisplay(selectedDate)}
                             </p>
                         </div>
@@ -292,15 +130,14 @@ export function TodosPage() {
                                 value={selectedDate}
                                 onChange={handleDateChange}
                                 max={todayDate}
-                                className="px-3 py-2 border border-gray-300 rounded-lg shadow-sm
-                         focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500
-                         text-sm"
+                                className="px-3 py-2 border border-gray-200 rounded-lg text-sm
+                                    focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                             />
                             {!isToday && (
                                 <button
                                     onClick={goToToday}
                                     className="px-3 py-2 text-sm font-medium text-indigo-600 bg-indigo-50
-                           hover:bg-indigo-100 rounded-lg transition-colors duration-200"
+                                        hover:bg-indigo-100 rounded-lg transition-colors"
                                 >
                                     Today
                                 </button>
@@ -308,11 +145,12 @@ export function TodosPage() {
                         </div>
                     </div>
 
+                    {/* Progress */}
                     {totalCount > 0 && (
-                        <div className="mt-4">
+                        <div className="mt-6">
                             <div className="flex items-center justify-between text-sm text-gray-600 mb-2">
-                                <span>Total progress</span>
-                                <span>{completedCount} of {totalCount} completed</span>
+                                <span>Progress</span>
+                                <span className="font-medium">{completedCount} of {totalCount}</span>
                             </div>
                             <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
                                 <div
@@ -324,57 +162,105 @@ export function TodosPage() {
                     )}
                 </div>
 
-                {isToday && (
-                    <div className="mb-6">
-                        <TodoForm onAdd={handleAddTodo} disabled={isOperating} />
-                    </div>
-                )}
-
+                {/* Error */}
                 {error && (
                     <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
                         <p className="text-sm text-red-600">{error}</p>
                     </div>
                 )}
 
+                {/* Content */}
                 {loading ? (
-                    <div className="flex flex-col items-center justify-center py-12">
+                    <div className="flex flex-col items-center justify-center py-16">
                         <div className="animate-spin rounded-full h-10 w-10 border-4 border-indigo-500 border-t-transparent mb-4"></div>
-                        <p className="text-gray-600">Loading tasks...</p>
+                        <p className="text-gray-500">Loading...</p>
                     </div>
-                ) : mainTodos.length === 0 ? (
-                    <div className="text-center py-12">
-                        <div className="inline-flex items-center justify-center w-16 h-16 bg-gray-100 rounded-full mb-4">
-                            <span className="text-3xl">📝</span>
+                ) : subtasks.length === 0 ? (
+                    <div className="text-center py-16">
+                        <div className="w-20 h-20 mx-auto mb-4 bg-gray-100 rounded-full flex items-center justify-center">
+                            <span className="text-4xl">📋</span>
                         </div>
-                        <p className="text-gray-600">
-                            {isToday
-                                ? "You don't have any tasks for today. Add one!"
-                                : 'No tasks recorded for this date.'}
+                        <p className="text-gray-600 mb-2">No tasks for {isToday ? 'today' : 'this date'}</p>
+                        <p className="text-sm text-gray-400 mb-6">
+                            Plan your objectives in Goal Planning to see tasks here.
                         </p>
+                        <button
+                            onClick={() => navigate('/goals')}
+                            className="px-5 py-2.5 bg-indigo-500 text-white font-medium rounded-lg
+                                hover:bg-indigo-600 transition-colors"
+                        >
+                            Go to Goal Planning
+                        </button>
                     </div>
                 ) : (
-                    <div className="space-y-3">
-                        {mainTodos.map((todo) => (
-                            <TodoItem
-                                key={todo.id}
-                                todo={todo}
-                                onToggle={handleToggleTodo}
-                                onDelete={handleDeleteTodo}
-                                onUpdate={handleUpdateTodo}
-                                onAddSubtask={isToday ? handleAddSubtask : undefined}
-                                disabled={isOperating}
-                            />
+                    <div className="space-y-8">
+                        {Object.entries(groupedByCategory).map(([category, items]) => (
+                            <div key={category}>
+                                {/* Category Header */}
+                                <div className="flex items-center gap-3 mb-4">
+                                    <div className="w-1 h-6 bg-indigo-500 rounded-full"></div>
+                                    <h3 className="text-lg font-semibold text-gray-800">{category}</h3>
+                                    <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full">
+                                        {items.filter(i => i.completed).length}/{items.length}
+                                    </span>
+                                </div>
+
+                                {/* Tasks in category */}
+                                <div className="space-y-3 ml-4">
+                                    {items.map((item) => (
+                                        <div
+                                            key={item.subtask.id}
+                                            className={`flex items-start gap-4 p-4 bg-white rounded-xl border transition-all duration-200
+                                                ${item.completed
+                                                    ? 'border-gray-200 bg-gray-50'
+                                                    : 'border-gray-200 hover:border-indigo-200 hover:shadow-sm'
+                                                }`}
+                                        >
+                                            {/* Checkbox */}
+                                            <button
+                                                onClick={() => handleToggle(item.subtask.id, !item.completed)}
+                                                disabled={isOperating || !isToday}
+                                                className={`flex-shrink-0 w-6 h-6 mt-0.5 rounded-md border-2 flex items-center justify-center
+                                                    transition-all duration-200 disabled:cursor-not-allowed
+                                                    ${item.completed
+                                                        ? 'bg-indigo-500 border-indigo-500 text-white'
+                                                        : 'border-gray-300 hover:border-indigo-400'
+                                                    }
+                                                    ${!isToday ? 'opacity-60' : ''}`}
+                                            >
+                                                {item.completed && (
+                                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                                                    </svg>
+                                                )}
+                                            </button>
+
+                                            {/* Content */}
+                                            <div className="flex-1 min-w-0">
+                                                <p className={`font-medium leading-relaxed transition-all
+                                                    ${item.completed ? 'text-gray-400 line-through' : 'text-gray-800'}`}>
+                                                    {item.subtask.title}
+                                                </p>
+                                                <div className="flex items-center gap-2 mt-1.5 text-xs text-gray-400">
+                                                    <span>{item.objectiveTitle}</span>
+                                                    <span>•</span>
+                                                    <span>{item.taskTitle}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
                         ))}
                     </div>
                 )}
 
+                {/* Success Message */}
                 {!loading && totalCount > 0 && completedCount === totalCount && (
-                    <div className="mt-8 text-center py-6 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-200">
-                        <span className="text-4xl mb-2 block">🎉</span>
-                        <p className="text-green-700 font-medium">
-                            Congratulations! You completed all your tasks
-                            {isToday ? ' for today' : ' for this day'}.
-                        </p>
+                    <div className="mt-10 text-center py-8 bg-gradient-to-r from-green-50 to-emerald-50 rounded-2xl border border-green-100">
+                        <span className="text-5xl mb-3 block">🎉</span>
+                        <p className="text-green-700 font-semibold text-lg">All tasks completed!</p>
+                        <p className="text-green-600 text-sm mt-1">Great job today!</p>
                     </div>
                 )}
             </main>
