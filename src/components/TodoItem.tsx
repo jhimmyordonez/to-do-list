@@ -100,21 +100,23 @@ export function TodoItem({
     };
 
     return (
-        <div className={isSubtask ? '' : 'space-y-2'}>
+        <div className={isSubtask ? '' : 'space-y-3'}>
             <div
-                className={`flex items-center gap-3 p-4 bg-white rounded-lg shadow-sm border 
-                    transition-all duration-200 hover:shadow-md
-                    ${effectiveDone ? 'border-green-200 bg-green-50' : 'border-gray-200'}
-                    ${isSubtask ? 'ml-8 border-l-4 border-l-indigo-200' : ''}`}
+                className={`flex items-start bg-white rounded-xl border 
+                    transition-all duration-200
+                    ${effectiveDone ? 'bg-slate-50 border-slate-200' : 'border-slate-200 hover:border-indigo-300 hover:shadow-md'}
+                    ${isSubtask
+                        ? 'ml-10 border-l-2 border-l-indigo-300 rounded-l-none gap-3 p-3 py-2.5'
+                        : 'shadow-sm gap-4 p-5'}`}
             >
                 {/* Checkbox / Status indicator */}
                 {hasSubtasks ? (
                     // For tasks with subtasks: show only progress counter (no circle)
                     <div
-                        className="flex-shrink-0 w-6 h-6 flex items-center justify-center"
+                        className="flex-shrink-0 w-8 h-8 flex items-center justify-center bg-indigo-50 rounded-lg mt-0.5"
                         title={isAutoCompleted ? 'All subtasks completed' : `${completedSubtasks}/${subtaskCount} subtasks`}
                     >
-                        <span className={`text-xs font-bold ${isAutoCompleted ? 'text-green-600' : 'text-gray-400'}`}>
+                        <span className={`text-xs font-semibold ${isAutoCompleted ? 'text-indigo-600' : 'text-indigo-400'}`}>
                             {completedSubtasks}/{subtaskCount}
                         </span>
                     </div>
@@ -123,22 +125,22 @@ export function TodoItem({
                     <button
                         onClick={handleToggle}
                         disabled={disabled || isSaving}
-                        className={`flex-shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center
-                       transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed
+                        className={`flex-shrink-0 w-6 h-6 rounded-md border-2 flex items-center justify-center mt-0.5
+                       transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed
                        ${todo.done
-                                ? 'bg-green-500 border-green-500 text-white'
-                                : 'border-gray-300 hover:border-indigo-500'}`}
+                                ? 'bg-indigo-500 border-indigo-500 text-white'
+                                : 'border-slate-300 hover:border-indigo-400'}`}
                         aria-label={todo.done ? 'Mark as pending' : 'Mark as completed'}
                     >
                         {todo.done && (
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
                             </svg>
                         )}
                     </button>
                 )}
 
-                <div className="flex-grow min-w-0">
+                <div className="flex-grow min-w-0 space-y-2">
                     {isEditing ? (
                         <input
                             type="text"
@@ -149,7 +151,7 @@ export function TodoItem({
                             disabled={isSaving}
                             maxLength={500}
                             autoFocus
-                            className="w-full px-2 py-1 text-gray-800 border-b-2 border-indigo-500 focus:outline-none bg-transparent"
+                            className="w-full px-2 py-1 text-gray-800 border-b-2 border-gray-400 focus:outline-none focus:border-gray-600 bg-transparent"
                         />
                     ) : (
                         <span
@@ -168,50 +170,50 @@ export function TodoItem({
 
                                 setIsEditing(true);
                             }}
-                            title={(todo.title.match(/(https?:\/\/[^\s]+)/)) ? "Ctrl + Click para abrir link" : ""}
-                            className={`block text-gray-800 transition-all duration-200 cursor-text
-                           ${effectiveDone ? 'line-through text-gray-500' : ''}`}
+                            title={(todo.title.match(/(https?:\/\/[^\s]+)/)) ? "Ctrl + Click to open link" : ""}
+                            className={`block text-gray-800 font-medium transition-all duration-200 cursor-text leading-relaxed
+                           ${effectiveDone ? 'line-through text-gray-400' : ''}`}
                         >
                             {todo.title}
                         </span>
                     )}
                     {hasSubtasks && (
-                        <span className={`text-xs mt-1 block ${isAutoCompleted ? 'text-green-600' : 'text-gray-500'}`}>
+                        <span className={`text-sm block ${isAutoCompleted ? 'text-gray-600' : 'text-gray-400'}`}>
                             {isAutoCompleted
-                                ? '✓ All subtasks completed'
-                                : `${completedSubtasks}/${subtaskCount} subtasks completed`}
+                                ? 'All subtasks completed'
+                                : `${completedSubtasks} of ${subtaskCount} subtasks completed`}
                         </span>
                     )}
                     {/* Category and repeat badges */}
                     {!isSubtask && (todo.category || todo.repeat_days > 0) && (
-                        <div className="flex gap-2 mt-1 flex-wrap">
+                        <div className="flex gap-3 flex-wrap">
                             {todo.category && (
-                                <span className="text-xs px-2 py-0.5 bg-blue-50 text-blue-700 rounded-full border border-blue-100">
-                                    📁 {todo.category}
+                                <span className="text-xs text-gray-500">
+                                    Category: <span className="text-gray-700 font-medium">{todo.category}</span>
                                 </span>
                             )}
                             {todo.repeat_days > 0 && (
-                                <span className="text-xs px-2 py-0.5 bg-purple-50 text-purple-700 rounded-full border border-purple-100">
-                                    🔄 {todo.repeat_days} days
+                                <span className="text-xs text-gray-500">
+                                    Duration: <span className="text-gray-700 font-medium">{todo.repeat_days} days</span>
                                 </span>
                             )}
                         </div>
                     )}
                 </div>
 
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1 ml-2">
                     {/* Add subtask button - only for main tasks */}
                     {!isSubtask && onAddSubtask && (
                         <button
                             onClick={() => setShowSubtaskInput(!showSubtaskInput)}
                             disabled={disabled || isSaving}
-                            className="flex-shrink-0 p-2 text-gray-400 hover:text-indigo-500 hover:bg-indigo-50 
-                         rounded-lg transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="flex-shrink-0 p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-50 
+                         rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                             aria-label="Add subtask"
                             title="Add subtask"
                         >
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
                                     d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                             </svg>
                         </button>
@@ -220,12 +222,12 @@ export function TodoItem({
                     <button
                         onClick={handleDelete}
                         disabled={disabled || isSaving}
-                        className="flex-shrink-0 p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 
-                       rounded-lg transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="flex-shrink-0 p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-50 
+                       rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                         aria-label="Delete task"
                     >
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
                                 d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                         </svg>
                     </button>
@@ -234,7 +236,7 @@ export function TodoItem({
 
             {/* Subtask input */}
             {showSubtaskInput && (
-                <div className="ml-8 flex gap-2 animate-fade-in">
+                <div className="ml-10 flex gap-2 animate-fade-in">
                     <input
                         type="text"
                         value={subtaskTitle}
@@ -244,15 +246,15 @@ export function TodoItem({
                         disabled={isAddingSubtask}
                         maxLength={500}
                         autoFocus
-                        className="flex-grow px-3 py-2 text-sm border border-gray-300 rounded-lg shadow-sm 
-                       focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 
-                       placeholder-gray-400 disabled:bg-gray-100"
+                        className="flex-grow px-4 py-2.5 text-sm border border-gray-200 rounded-lg 
+                       focus:ring-1 focus:ring-gray-300 focus:border-gray-300 
+                       placeholder-gray-400 disabled:bg-gray-50"
                     />
                     <button
                         onClick={handleAddSubtask}
                         disabled={isAddingSubtask || !subtaskTitle.trim()}
-                        className="px-3 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg
-                       hover:bg-indigo-700 disabled:bg-gray-400 disabled:cursor-not-allowed
+                        className="px-4 py-2.5 bg-gray-800 text-white text-sm font-medium rounded-lg
+                       hover:bg-gray-700 disabled:bg-gray-300 disabled:cursor-not-allowed
                        transition-colors duration-200"
                     >
                         {isAddingSubtask ? '...' : 'Add'}
@@ -262,9 +264,9 @@ export function TodoItem({
                             setShowSubtaskInput(false);
                             setSubtaskTitle('');
                         }}
-                        className="px-3 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors duration-200"
+                        className="px-3 py-2.5 text-gray-500 hover:bg-gray-100 rounded-lg transition-colors duration-200"
                     >
-                        ✕
+                        Cancel
                     </button>
                 </div>
             )}

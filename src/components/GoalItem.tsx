@@ -117,37 +117,35 @@ export function GoalItem({
     const isDisabled = disabled || isOperating;
 
     return (
-        <div className={isSubgoal ? '' : 'space-y-2'}>
+        <div className={isSubgoal ? '' : 'space-y-3'}>
             <div
-                className={`group bg-white rounded-xl shadow-sm border transition-all duration-200 p-4
-                    ${isSubgoal ? 'ml-8 border-l-4' : ''}
+                className={`group bg-white rounded-xl shadow-sm border transition-all duration-200
+                    ${isSubgoal
+                        ? 'ml-10 border-l-2 border-l-indigo-300 rounded-l-none p-3 py-2.5'
+                        : 'p-5'}
                     ${effectiveDone
-                        ? isSubgoal
-                            ? 'border-emerald-200 bg-emerald-50/50 border-l-emerald-400'
-                            : 'border-emerald-200 bg-emerald-50/50'
-                        : isSubgoal
-                            ? 'border-gray-200 border-l-gray-300 hover:border-emerald-300 hover:shadow-md'
-                            : 'border-gray-200 hover:border-emerald-300 hover:shadow-md'
+                        ? 'bg-slate-50 border-slate-200'
+                        : 'border-slate-200 hover:border-indigo-300 hover:shadow-md'
                     }`}
             >
-                <div className="flex items-start gap-3">
+                <div className="flex items-start gap-4">
                     {/* Checkbox - only shown for items WITHOUT subgoals */}
                     {!hasSubgoals && (
                         <button
                             onClick={handleToggle}
                             disabled={isDisabled}
-                            className={`mt-0.5 w-6 h-6 rounded-full border-2 flex items-center justify-center
+                            className={`mt-0.5 w-6 h-6 rounded-md border-2 flex items-center justify-center
                                 transition-all duration-200 flex-shrink-0
                                 ${goal.done
-                                    ? 'bg-emerald-500 border-emerald-500 text-white'
-                                    : 'border-gray-300 hover:border-emerald-500'
+                                    ? 'bg-indigo-500 border-indigo-500 text-white'
+                                    : 'border-slate-300 hover:border-indigo-400'
                                 }
                                 ${isDisabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
                             title="Toggle completion"
                         >
                             {goal.done && (
-                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
                                 </svg>
                             )}
                         </button>
@@ -155,15 +153,15 @@ export function GoalItem({
 
                     {/* Progress indicator for goals with subgoals - no circle */}
                     {hasSubgoals && (
-                        <div className="mt-0.5 w-6 h-6 flex items-center justify-center flex-shrink-0">
-                            <span className={`text-xs font-bold ${effectiveDone ? 'text-emerald-600' : 'text-gray-400'}`}>
+                        <div className="mt-0.5 w-8 h-8 flex items-center justify-center flex-shrink-0 bg-indigo-50 rounded-lg">
+                            <span className={`text-xs font-semibold ${effectiveDone ? 'text-indigo-600' : 'text-indigo-400'}`}>
                                 {subgoalsCompleted}/{totalSubgoals}
                             </span>
                         </div>
                     )}
 
                     {/* Content */}
-                    <div className="flex-1 min-w-0">
+                    <div className="flex-1 min-w-0 space-y-1">
                         {isEditing ? (
                             <input
                                 type="text"
@@ -173,26 +171,26 @@ export function GoalItem({
                                 onKeyDown={handleKeyDown}
                                 autoFocus
                                 disabled={isOperating}
-                                className="w-full px-2 py-1 border border-emerald-300 rounded-lg
-                                   focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500
+                                className="w-full px-2 py-1 border border-indigo-300 rounded-lg
+                                   focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500
                                    disabled:bg-gray-100"
                             />
                         ) : (
                             <div className="flex flex-col gap-1">
                                 <p
-                                    className={`text-gray-900 transition-all duration-200
-                                        ${effectiveDone ? 'line-through text-gray-500' : ''}`}
+                                    className={`text-gray-800 font-medium transition-all duration-200 leading-relaxed
+                                        ${effectiveDone ? 'line-through text-gray-400' : ''}`}
                                 >
                                     {goal.title}
                                 </p>
                                 {hasSubgoals && (
-                                    <p className="text-xs text-gray-500">
+                                    <p className="text-sm text-gray-500">
                                         {subgoalsCompleted} of {totalSubgoals} sub-goals completed
                                     </p>
                                 )}
                                 {goal.completed_at && (
-                                    <p className="text-xs text-emerald-600">
-                                        ✓ Completed {new Date(goal.completed_at).toLocaleDateString()}
+                                    <p className="text-sm text-indigo-600">
+                                        Completed {new Date(goal.completed_at).toLocaleDateString()}
                                     </p>
                                 )}
                             </div>
@@ -201,19 +199,19 @@ export function GoalItem({
 
                     {/* Actions */}
                     {!isEditing && (
-                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="flex items-center gap-1 ml-2 opacity-0 group-hover:opacity-100 transition-opacity">
                             {/* Add sub-goal button (only for main goals, not sub-goals) */}
                             {!isSubgoal && onAddSubgoal && (
                                 <button
                                     onClick={() => setShowAddSubgoal(!showAddSubgoal)}
                                     disabled={isDisabled}
-                                    className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50
-                                       rounded-lg transition-colors duration-200
+                                    className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50
+                                       rounded-lg transition-all duration-200
                                        disabled:opacity-50 disabled:cursor-not-allowed"
                                     title="Add sub-goal"
                                 >
-                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
                                             d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                                     </svg>
                                 </button>
@@ -221,26 +219,26 @@ export function GoalItem({
                             <button
                                 onClick={() => setIsEditing(true)}
                                 disabled={isDisabled}
-                                className="p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50
-                                   rounded-lg transition-colors duration-200
+                                className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50
+                                   rounded-lg transition-all duration-200
                                    disabled:opacity-50 disabled:cursor-not-allowed"
                                 title="Edit goal"
                             >
-                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
                                         d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                                 </svg>
                             </button>
                             <button
                                 onClick={handleDelete}
                                 disabled={isDisabled}
-                                className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50
-                                   rounded-lg transition-colors duration-200
+                                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-50
+                                   rounded-lg transition-all duration-200
                                    disabled:opacity-50 disabled:cursor-not-allowed"
                                 title="Delete goal"
                             >
-                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
                                         d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                 </svg>
                             </button>
@@ -250,7 +248,7 @@ export function GoalItem({
 
                 {/* Add sub-goal form */}
                 {showAddSubgoal && (
-                    <div className="mt-3 ml-9 flex gap-2">
+                    <div className="mt-4 ml-12 flex gap-2">
                         <input
                             type="text"
                             value={subgoalTitle}
@@ -259,22 +257,22 @@ export function GoalItem({
                             placeholder="Add a sub-goal..."
                             autoFocus
                             disabled={isOperating}
-                            className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg
-                               focus:ring-2 focus:ring-blue-500 focus:border-blue-500
-                               disabled:bg-gray-100"
+                            className="flex-1 px-4 py-2.5 text-sm border border-slate-200 rounded-lg
+                               focus:ring-1 focus:ring-indigo-300 focus:border-indigo-300
+                               disabled:bg-gray-50"
                         />
                         <button
                             onClick={handleAddSubgoal}
                             disabled={isOperating || !subgoalTitle.trim()}
-                            className="px-3 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg
-                               hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed
+                            className="px-4 py-2.5 text-sm font-medium text-white bg-indigo-500 rounded-lg
+                               hover:bg-indigo-600 disabled:bg-gray-300 disabled:cursor-not-allowed
                                transition-colors duration-200"
                         >
                             Add
                         </button>
                         <button
                             onClick={() => { setShowAddSubgoal(false); setSubgoalTitle(''); }}
-                            className="px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg
+                            className="px-3 py-2.5 text-sm text-gray-500 hover:bg-gray-100 rounded-lg
                                transition-colors duration-200"
                         >
                             Cancel
