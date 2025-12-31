@@ -3,6 +3,7 @@ import { AuthProvider } from './context/AuthContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { LoginPage } from './pages/LoginPage';
 import { TodosPage } from './pages/TodosPage';
+import { GoalsPage } from './pages/GoalsPage';
 
 function App() {
   return (
@@ -15,6 +16,7 @@ function App() {
           {/* Protected routes */}
           <Route element={<ProtectedRoute />}>
             <Route path="/todos" element={<TodosPage />} />
+            <Route path="/goals" element={<GoalsPage />} />
           </Route>
 
           {/* Default redirect */}
@@ -26,3 +28,4 @@ function App() {
 }
 
 export default App;
+

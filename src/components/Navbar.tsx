@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 interface NavbarProps {
@@ -6,6 +7,7 @@ interface NavbarProps {
 
 export function Navbar({ streak = 0 }: NavbarProps) {
     const { user, signOut } = useAuth();
+    const navigate = useNavigate();
 
     const handleSignOut = async () => {
         await signOut();
@@ -27,7 +29,16 @@ export function Navbar({ streak = 0 }: NavbarProps) {
                     </div>
 
                     {user && (
-                        <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-2 sm:gap-4">
+                            <button
+                                onClick={() => navigate('/goals')}
+                                className="px-3 py-2 text-sm font-medium text-emerald-700 bg-emerald-50
+                                   hover:bg-emerald-100 rounded-lg transition-colors duration-200
+                                   flex items-center gap-1.5 border border-emerald-200"
+                            >
+                                <span>🎯</span>
+                                <span className="hidden sm:inline">Monthly Goals</span>
+                            </button>
                             <span className="text-sm text-gray-600 hidden sm:block">
                                 {user.email}
                             </span>
@@ -45,3 +56,4 @@ export function Navbar({ streak = 0 }: NavbarProps) {
         </nav>
     );
 }
+
